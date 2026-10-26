@@ -23,6 +23,7 @@ def sh(cmd, check=True):
     r = subprocess.run(cmd, capture_output=True, text=True)
     print(">>", cmd[1], cmd[2], "rc", r.returncode, flush=True)
     if check and r.returncode != 0:
+        print((r.stdout + r.stderr)[-1500:], flush=True)  # mensagem de erro do Kaggle (sem conteúdo do job)
         raise SystemExit("command failed")
     return (r.stdout + r.stderr).lower()
 
@@ -32,7 +33,10 @@ def main(work, out):
     job = json.loads((work / "job.json").read_text(encoding="utf-8"))
     refs = {}
     for wav in sorted((work / "refs").glob("*.wav")) if (work / "refs").exists() else []:
-        refs[wav.stem] = {"audio_b64": base64.b64encode(wav.read_bytes()).decode(),
+        ogg = wav.with_suffix(".ogg")  # comprime (~8x) para o código do kernel não ficar grande demais
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(wav), "-ac", "1", "-ar", "24000",
+                        "-c:a", "libvorbis", "-q:a", "6", str(ogg)], check=True)
+        refs[wav.stem] = {"audio_b64": base64.b64encode(ogg.read_bytes()).decode(),
                           "texto": wav.with_suffix(".txt").read_text(encoding="utf-8").strip()}
     user = os.environ["KAGGLE_USERNAME"].strip()
 
