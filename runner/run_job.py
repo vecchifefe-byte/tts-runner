@@ -43,7 +43,7 @@ def main(work, out):
     k = pathlib.Path("/tmp/kernel")
     shutil.rmtree(k, ignore_errors=True)
     k.mkdir()
-    code = (AQUI / "tts_job.py").read_text(encoding="utf-8")
+    code = (AQUI / ("img_job.py" if job.get("tipo") == "imagens" else "tts_job.py")).read_text(encoding="utf-8")
     code = code.replace("__JOB_B64__", base64.b64encode(json.dumps(job).encode()).decode())
     code = code.replace("__REFS_B64__", base64.b64encode(json.dumps(refs).encode()).decode())
     (k / "job.py").write_text(code, encoding="utf-8")
