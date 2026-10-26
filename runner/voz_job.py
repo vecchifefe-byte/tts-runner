@@ -54,6 +54,31 @@ open("/tmp/fase1.py", "w").write(FASE1)
 if JOB.get("design"):
     sh(f"{sys.executable} /tmp/fase1.py")
 
+# ---------------- fase K: Kokoro (vozes sintéticas pt-BR) ----------------
+if JOB.get("kokoro"):
+    sh("apt-get -qq install -y espeak-ng > /dev/null 2>&1 || (apt-get -qq update && apt-get -qq install -y espeak-ng) > /dev/null 2>&1")
+    sh("pip install -q 'kokoro>=0.9' soundfile 2>&1 | tail -2")
+FASEK = r'''
+import json, numpy as np, soundfile as sf
+from kokoro import KPipeline
+job = json.load(open("/tmp/job.json"))
+pipe = KPipeline(lang_code="p")
+def fala(texto, voz, vel):
+    partes = [a for _, _, a in pipe(texto, voice=voz, speed=vel)]
+    return np.concatenate([np.asarray(a, dtype=np.float32) for a in partes])
+for c in job.get("kokoro", []):
+    x = fala(c["ref_texto"], c["voz"], c.get("velocidade", 1.0))
+    sf.write(f"/tmp/refs/{c['id']}.wav", x, 24000)
+    open(f"/tmp/refs/{c['id']}.txt", "w").write(c["ref_texto"])
+    sf.write(f"/kaggle/working/{c['id']}_ref.wav", x, 24000)
+    for k, t in enumerate(c.get("falas", [])):
+        sf.write(f"/kaggle/working/kk_{c['id']}_{k + 1}.wav", fala(t, c["voz"], c.get("velocidade", 1.0)), 24000)
+    print("kokoro ok", c["id"], flush=True)
+'''
+open("/tmp/fasek.py", "w").write(FASEK)
+if JOB.get("kokoro"):
+    sh(f"{sys.executable} /tmp/fasek.py")
+
 # ---------------- fase 2: Chatterbox pt-BR ----------------
 sh("pip install -q --no-deps 'git+https://github.com/resemble-ai/chatterbox.git@master' 2>&1 | tail -3")
 sh("pip install -q librosa s3tokenizer conformer==0.3.2 omegaconf pyloudnorm pykakasi spacy-pkuseg "
@@ -85,7 +110,7 @@ except Exception as e:
 for c in job["clonar"]:
     ref = c["ref"]
     cand = [f"/tmp/refs/{ref}.wav", f"/tmp/refs/{ref}.ogg"]
-    caminho = next((p for p in cand if os.path.exists(p)), None)
+    caminho = next((p for p in cand if os.path.exists(p)), None) if ref else ""
     if caminho is None:
         print("sem ref", ref, flush=True)
         continue
@@ -95,8 +120,9 @@ for c in job["clonar"]:
         sf.write(caminho, x, sr)
     for k, t in enumerate(c["falas"]):
         torch.manual_seed(200 + k)
-        wav = model.generate(t, language_id="pt", audio_prompt_path=caminho,
-                             exaggeration=c.get("exaggeration", 0.5), cfg_weight=c.get("cfg", 0.5))
+        extra = {"audio_prompt_path": caminho} if caminho else {}  # sem ref = voz padrão do modelo
+        wav = model.generate(t, language_id="pt", exaggeration=c.get("exaggeration", 0.5),
+                             cfg_weight=c.get("cfg", 0.5), **extra)
         ta.save(f"/kaggle/working/cb_{c['id']}_{k + 1}.wav", wav, model.sr)
     print("chatterbox ok", c["id"], flush=True)
 '''
@@ -117,6 +143,9 @@ for c in job.get("design", []):
 for c in job["clonar"]:
     for k, t in enumerate(c["falas"]):
         textos[f"cb_{c['id']}_{k + 1}.wav"] = t
+for c in job.get("kokoro", []):
+    for k, t in enumerate(c.get("falas", [])):
+        textos[f"kk_{c['id']}_{k + 1}.wav"] = t
 try:
     w = WhisperModel("medium", device="cuda", compute_type="float16")
 except Exception:
