@@ -1,0 +1,46 @@
+name: run
+on:
+  push:
+    paths: ["q/*.bin"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q "kaggle>=1.8"
+      - name: process
+        env:
+          CHAVE: ${{ secrets.CHAVE }}
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+        run: |
+          for f in q/*.bin; do
+            [ -e "$f" ] || continue
+            id=$(basename "$f" .bin)
+            [ -e "r/$id.bin" ] && continue
+            echo "item $id"
+            rm -rf /tmp/w /tmp/o && mkdir -p /tmp/w /tmp/o
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:CHAVE -in "$f" | tar xzf - -C /tmp/w
+            python3 runner/run_job.py /tmp/w /tmp/o || echo "estado=erro" > /tmp/o/FALHOU.txt
+            tar czf - -C /tmp/o . | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass env:CHAVE -out "r/$id.bin"
+          done
+      - name: save
+        if: always()
+        run: |
+          git config user.name "runner"
+          git config user.email "runner@users.noreply.github.com"
+          git add r || true
+          git diff --cached --quiet && exit 0
+          git commit -q -m "update"
+          git pull -q --rebase
+          git push -q
