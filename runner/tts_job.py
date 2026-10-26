@@ -72,7 +72,14 @@ def whisper():
 
 def transcrever(caminho):
     try:
-        segs, _ = whisper().transcribe(os.path.join(OUT, caminho), language="pt",
+        # passa o áudio já carregado (16 kHz): evita o decodificador do PyAV, incompatível no Kaggle
+        from scipy.signal import resample_poly
+        audio, sr0 = sf.read(os.path.join(OUT, caminho), dtype="float32")
+        if audio.ndim > 1:
+            audio = audio.mean(axis=1)
+        g = np.gcd(int(sr0), 16000)
+        audio = resample_poly(audio, 16000 // g, int(sr0) // g).astype(np.float32)
+        segs, _ = whisper().transcribe(audio, language="pt",
                                        word_timestamps=True, vad_filter=False)
         palavras, texto = [], []
         for s in segs:
