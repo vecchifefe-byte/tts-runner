@@ -16,12 +16,16 @@ def log(*a):
 
 subprocess.run("pip install -q -U diffusers transformers accelerate 2>&1 | tail -2", shell=True)
 import torch  # noqa: E402
-from diffusers import StableDiffusionXLPipeline  # noqa: E402
+from diffusers import AutoencoderKL, StableDiffusionXLPipeline  # noqa: E402
 
+vae = AutoencoderKL.from_pretrained("madebyollin/sdxl-vae-fp16-fix", torch_dtype=torch.float16)
 pipe = StableDiffusionXLPipeline.from_pretrained(
-    JOB.get("modelo", "stabilityai/stable-diffusion-xl-base-1.0"),
+    JOB.get("modelo", "stabilityai/stable-diffusion-xl-base-1.0"), vae=vae,
     torch_dtype=torch.float16, variant="fp16", use_safetensors=True).to("cuda:0")
-pipe.enable_vae_slicing()
+try:
+    pipe.vae.enable_slicing()
+except Exception:
+    pass
 estilo = JOB.get("estilo", "")
 neg = JOB.get("negativo", "")
 rel = {"tipo": "imagens", "itens": []}
