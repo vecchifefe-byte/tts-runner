@@ -44,6 +44,8 @@ def main(work, out):
     shutil.rmtree(k, ignore_errors=True)
     k.mkdir()
     arq = {"imagens": "img_job.py", "comparar": "voz_job.py"}.get(job.get("tipo"), "tts_job.py")
+    if job.get("tipo") == "episodio" and job.get("motor") == "chatterbox":
+        arq = "cb_job.py"
     code = (AQUI / arq).read_text(encoding="utf-8")
     code = code.replace("__JOB_B64__", base64.b64encode(json.dumps(job).encode()).decode())
     code = code.replace("__REFS_B64__", base64.b64encode(json.dumps(refs).encode()).decode())
