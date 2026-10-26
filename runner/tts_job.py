@@ -130,8 +130,11 @@ if JOB["tipo"] == "casting":
 
 elif JOB["tipo"] == "episodio":
     falas = JOB["falas"]
+    pers = JOB.get("personagens", {})
+    # personagem sem voz fixa: cria uma voz pela descrição e passa a clonar dela (fica igual no episódio todo)
+    faltando = sorted({f["quem"] for f in falas if f.get("modo", "clone") == "clone" and f["quem"] not in REFS})
     precisa_clone = any(f.get("modo", "clone") == "clone" for f in falas)
-    precisa_design = any(f.get("modo") == "design" for f in falas)
+    precisa_design = bool(faltando) or any(f.get("modo") == "design" for f in falas)
     clone = carregar("Qwen/Qwen3-TTS-12Hz-1.7B-Base", 0) if precisa_clone else None
     design = carregar("Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign", 1 if NGPU > 1 else 0) if precisa_design else None
     prompts = {}
@@ -139,7 +142,19 @@ elif JOB["tipo"] == "episodio":
         audio, sr_ref = sf.read(io.BytesIO(base64.b64decode(r["audio_b64"])), dtype="float32")
         prompts[quem] = clone.create_voice_clone_prompt(ref_audio=(audio, sr_ref), ref_text=r["texto"])
         log("voz de referência pronta:", quem)
-    pers = JOB.get("personagens", {})
+    relatorio["novas_vozes"] = []
+    REF_TXT = "Olha, eu vou te falar uma coisa, e você vai me ouvir com atenção, tá bom? Porque eu não vou repetir."
+    for quem in faltando:
+        desc = pers.get(quem, {}).get("descricao")
+        if not desc:
+            raise SystemExit(f"personagem sem voz e sem descrição: {quem}")
+        torch.manual_seed(7)
+        wavs, sr = design.generate_voice_design(text=REF_TXT, language=LINGUA, instruct=desc)
+        nome, _ = salvar(f"novo_ref_{quem}", wavs[0], sr)
+        prompts[quem] = clone.create_voice_clone_prompt(
+            ref_audio=(np.asarray(wavs[0], dtype=np.float32), sr), ref_text=REF_TXT)
+        relatorio["novas_vozes"].append({"quem": quem, "arquivo": nome, "texto": REF_TXT})
+        log("voz nova criada:", quem)
     for f in falas:
         for k in range(TAKES):
             torch.manual_seed(2000 + k)
