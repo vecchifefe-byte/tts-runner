@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
-      - run: pip install -q "kaggle>=1.8"
+      - run: pip install -q "kaggle>=1.8" soundfile numpy
       - name: process
         env:
           CHAVE: ${{ secrets.CHAVE }}
