@@ -32,7 +32,7 @@ rel = {"tipo": "imagens", "itens": []}
 for img in JOB["imagens"]:
     for s in img.get("seeds", [1]):
         g = torch.Generator("cuda").manual_seed(int(s))
-        im = pipe(prompt=f"{img['prompt']}, {estilo}", negative_prompt=neg,
+        im = pipe(prompt=f"{img['prompt']}, {img.get('estilo', estilo)}", negative_prompt=img.get("negativo", neg),
                   width=img.get("w", 768), height=img.get("h", 1344),
                   num_inference_steps=img.get("passos", 30), guidance_scale=img.get("cfg", 6.5),
                   generator=g).images[0]
