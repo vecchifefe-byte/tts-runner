@@ -30,7 +30,8 @@ for nome, r in REFS.items():
     open(f"/tmp/refs/{nome}.txt", "w").write(r["texto"])
 
 # ---------------- fase 1: Qwen3 VoiceDesign ----------------
-sh("pip install -q -U qwen-tts soundfile 2>&1 | tail -2")
+if JOB.get("design"):
+    sh("pip install -q -U qwen-tts soundfile 2>&1 | tail -2")
 FASE1 = r'''
 import json, torch, soundfile as sf, numpy as np, subprocess
 from qwen_tts import Qwen3TTSModel
@@ -50,10 +51,14 @@ for c in job.get("design", []):
     print("qwen ok", c["id"], flush=True)
 '''
 open("/tmp/fase1.py", "w").write(FASE1)
-sh(f"{sys.executable} /tmp/fase1.py")
+if JOB.get("design"):
+    sh(f"{sys.executable} /tmp/fase1.py")
 
 # ---------------- fase 2: Chatterbox pt-BR ----------------
-sh("pip install -q chatterbox-tts 2>&1 | tail -3")
+sh("pip install -q --no-deps chatterbox-tts 2>&1 | tail -3")
+sh("pip install -q librosa s3tokenizer conformer==0.3.2 omegaconf pyloudnorm pykakasi spacy-pkuseg "
+   "'git+https://github.com/resemble-ai/Perth.git@master' 2>&1 | tail -3")
+sh(f"{sys.executable} -c 'import torch, torchvision; print(torch.__version__, torchvision.__version__)'")
 FASE2 = r'''
 import json, os, shutil, glob, torch, torchaudio as ta, soundfile as sf
 from huggingface_hub import snapshot_download
