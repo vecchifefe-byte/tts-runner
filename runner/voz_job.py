@@ -55,7 +55,7 @@ if JOB.get("design"):
     sh(f"{sys.executable} /tmp/fase1.py")
 
 # ---------------- fase 2: Chatterbox pt-BR ----------------
-sh("pip install -q --no-deps chatterbox-tts 2>&1 | tail -3")
+sh("pip install -q --no-deps 'git+https://github.com/resemble-ai/chatterbox.git@master' 2>&1 | tail -3")
 sh("pip install -q librosa s3tokenizer conformer==0.3.2 omegaconf pyloudnorm pykakasi spacy-pkuseg "
    "'git+https://github.com/resemble-ai/Perth.git@master' 2>&1 | tail -3")
 sh(f"{sys.executable} -c 'import torch, torchvision; print(torch.__version__, torchvision.__version__)'")
