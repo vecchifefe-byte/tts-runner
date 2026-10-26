@@ -57,7 +57,8 @@ if JOB.get("design"):
 # ---------------- fase K: Kokoro (vozes sintéticas pt-BR) ----------------
 if JOB.get("kokoro"):
     sh("apt-get -qq install -y espeak-ng > /dev/null 2>&1 || (apt-get -qq update && apt-get -qq install -y espeak-ng) > /dev/null 2>&1")
-    sh("pip install -q 'kokoro>=0.9' soundfile 2>&1 | tail -2")
+    sh("pip install -q --ignore-requires-python 'kokoro>=0.9.4' 'misaki>=0.9.4' espeakng-loader phonemizer-fork soundfile 2>&1 | tail -3")
+    sh(f"{sys.executable} -c 'import kokoro, misaki; print(kokoro.__version__)'")
 FASEK = r'''
 import json, numpy as np, soundfile as sf
 from kokoro import KPipeline
