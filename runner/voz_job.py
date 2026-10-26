@@ -56,24 +56,25 @@ if JOB.get("design"):
 
 # ---------------- fase K: Kokoro (vozes sintéticas pt-BR) ----------------
 if JOB.get("kokoro"):
-    sh("apt-get -qq install -y espeak-ng > /dev/null 2>&1 || (apt-get -qq update && apt-get -qq install -y espeak-ng) > /dev/null 2>&1")
-    sh("pip install -q --ignore-requires-python 'kokoro>=0.9.4' 'misaki>=0.9.4' espeakng-loader phonemizer-fork soundfile 2>&1 | tail -3")
-    sh(f"{sys.executable} -c 'import kokoro, misaki; print(kokoro.__version__)'")
+    sh("pip install -q kokoro-onnx soundfile 2>&1 | tail -3")
+    sh("cd /tmp && wget -q https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx "
+       "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin; ls -la /tmp/*.onnx /tmp/*.bin")
 FASEK = r'''
 import json, numpy as np, soundfile as sf
-from kokoro import KPipeline
+from kokoro_onnx import Kokoro
 job = json.load(open("/tmp/job.json"))
-pipe = KPipeline(lang_code="p")
+kk = Kokoro("/tmp/kokoro-v1.0.onnx", "/tmp/voices-v1.0.bin")
 def fala(texto, voz, vel):
-    partes = [a for _, _, a in pipe(texto, voice=voz, speed=vel)]
-    return np.concatenate([np.asarray(a, dtype=np.float32) for a in partes])
+    x, sr = kk.create(texto, voice=voz, speed=vel, lang="pt-br")
+    return np.asarray(x, dtype=np.float32), sr
 for c in job.get("kokoro", []):
-    x = fala(c["ref_texto"], c["voz"], c.get("velocidade", 1.0))
-    sf.write(f"/tmp/refs/{c['id']}.wav", x, 24000)
+    x, sr = fala(c["ref_texto"], c["voz"], c.get("velocidade", 1.0))
+    sf.write(f"/tmp/refs/{c['id']}.wav", x, sr)
     open(f"/tmp/refs/{c['id']}.txt", "w").write(c["ref_texto"])
-    sf.write(f"/kaggle/working/{c['id']}_ref.wav", x, 24000)
+    sf.write(f"/kaggle/working/{c['id']}_ref.wav", x, sr)
     for k, t in enumerate(c.get("falas", [])):
-        sf.write(f"/kaggle/working/kk_{c['id']}_{k + 1}.wav", fala(t, c["voz"], c.get("velocidade", 1.0)), 24000)
+        y, sr = fala(t, c["voz"], c.get("velocidade", 1.0))
+        sf.write(f"/kaggle/working/kk_{c['id']}_{k + 1}.wav", y, sr)
     print("kokoro ok", c["id"], flush=True)
 '''
 open("/tmp/fasek.py", "w").write(FASEK)
