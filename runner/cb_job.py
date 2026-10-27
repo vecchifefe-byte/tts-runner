@@ -1,5 +1,6 @@
 # Batch TTS job with the Chatterbox language pack (runs inside a Kaggle GPU kernel).
 # Placeholders are filled by run_job.py. Each phase runs in its own process.
+# K: Kokoro (onnx) for lines with modo 'kokoro'.
 # A: Chatterbox for voices that already have a reference.
 # B: (only if needed) Qwen3 VoiceDesign creates references for new voices + "design" lines.
 # C: Chatterbox for the new voices; D: Qwen clone fallback for anything still missing.
@@ -186,6 +187,28 @@ json.dump({"tipo": "episodio", "motor": "chatterbox", "itens": itens, "novas_voz
 print("itens", len(itens), flush=True)
 '''
 
+KOKORO = r'''
+import json, numpy as np, soundfile as sf
+from kokoro_onnx import Kokoro
+job = json.load(open("/tmp/job.json"))
+kk = Kokoro("/tmp/kokoro-v1.0.onnx", "/tmp/voices-v1.0.bin")
+cfg = job.get("kokoro", {})
+for f in job["falas"]:
+    if f.get("modo") != "kokoro":
+        continue
+    c = cfg[f["quem"]]
+    for k, fator in enumerate((1.0, 0.95, 1.06)[: int(job.get("takes", 3))]):
+        x, sr = kk.create(f["texto"], voice=c["voz"], speed=float(c.get("velocidade", 1.0)) * fator, lang=c.get("lang", "pt-br"))
+        sf.write(f"/kaggle/working/{f['id']}_t{k + 1}.wav", np.asarray(x, dtype=np.float32), sr)
+    print("kokoro ok", f["id"], flush=True)
+'''
+
+if any(f.get("modo") == "kokoro" for f in FALAS):
+    sh("pip install -q kokoro-onnx 2>&1 | tail -2")
+    sh("cd /tmp && wget -q https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx "
+       "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin")
+    log("fase K: kokoro")
+    fase("kokoro", KOKORO)
 log("fase A: chatterbox")
 fase("cb", CB)
 if PRECISA_QWEN:
